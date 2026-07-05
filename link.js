@@ -54,7 +54,7 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-${colors.cyan}agent-skills linker${colors.reset}
+${colors.cyan}agents-skills linker${colors.reset}
 
   Links skill directories from this repo into agent config directories.
 

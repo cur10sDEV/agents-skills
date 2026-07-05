@@ -1,4 +1,4 @@
-# agent-skills — AGENTS.md
+# agents-skills — AGENTS.md
 
 ## What this repo is
 

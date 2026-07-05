@@ -1,4 +1,4 @@
-# agent-skills
+# agents-skills
 
 A centralized collection of AI coding agent skills (SKILL.md files with associated assets). Symlink skills into your agent config directories — opencode, Claude Code, Codex, or anywhere else — and keep them all in sync from one place.
 
@@ -6,7 +6,7 @@ A centralized collection of AI coding agent skills (SKILL.md files with associat
 
 ```bash
 git clone <repo-url>
-cd agent-skills
+cd agents-skills
 node link.js --init        # create default skills.json
 # edit skills.json to taste
 node link.js               # link all skills to all configured agents
@@ -22,7 +22,7 @@ The linker checks for existing symlinks and skips or prompts before overwriting.
 
 ```bash
 git clone <repo-url>
-cd agent-skills
+cd agents-skills
 ```
 
 No dependencies — `link.js` uses only Node.js built-ins.
