@@ -17,13 +17,29 @@ const colors = {
   dim: '\x1b[2m',
 };
 
+if (!process.stdout.isTTY) {
+  for (const key of Object.keys(colors)) colors[key] = '';
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const opts = { targets: [], skills: [], dryRun: false, yes: false, init: false, help: false };
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--target': opts.targets.push(args[++i]); break;
-      case '--skill':  opts.skills.push(args[++i]); break;
+      case '--target':
+        if (i + 1 >= args.length) {
+          console.error(`${colors.red}Error: --target requires a path argument${colors.reset}`);
+          process.exit(1);
+        }
+        opts.targets.push(args[++i]);
+        break;
+      case '--skill':
+        if (i + 1 >= args.length) {
+          console.error(`${colors.red}Error: --skill requires a name argument${colors.reset}`);
+          process.exit(1);
+        }
+        opts.skills.push(args[++i]);
+        break;
       case '--dry-run': opts.dryRun = true; break;
       case '--yes': case '-y': opts.yes = true; break;
       case '--init': opts.init = true; break;
@@ -79,7 +95,14 @@ function discoverSkills() {
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_FILE)) return { agents: {}, customTargets: [] };
-  return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+  try {
+    const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error(`${colors.red}Error reading ${CONFIG_FILE}: ${err.message}${colors.reset}`);
+    console.error(`${colors.yellow}Falling back to empty config. Fix or remove skills.json.${colors.reset}`);
+    return { agents: {}, customTargets: [] };
+  }
 }
 
 function createDefaultConfig() {
@@ -139,17 +162,18 @@ async function main() {
     }
   }
 
-  let skills = discoverSkills();
+  const allSkills = discoverSkills();
 
-  if (skills.length === 0) {
+  if (allSkills.length === 0) {
     console.log(`${colors.red}No skills found (no directories with SKILL.md).${colors.reset}`);
     process.exit(1);
   }
 
+  let skills = allSkills;
   if (opts.skills.length > 0) {
-    const missing = opts.skills.filter(s => !skills.includes(s));
+    const missing = opts.skills.filter(s => !allSkills.includes(s));
     for (const s of missing) console.log(`${colors.yellow}⚠  Skill "${s}" not found.${colors.reset}`);
-    skills = skills.filter(s => opts.skills.includes(s));
+    skills = allSkills.filter(s => opts.skills.includes(s));
     if (skills.length === 0) {
       console.log(`${colors.red}No matching skills found.${colors.reset}`);
       process.exit(1);
@@ -158,7 +182,11 @@ async function main() {
 
   const targets = [];
   for (const [name, cfg] of Object.entries(config.agents)) {
-    targets.push({ name, path: resolvePath(cfg.path), skills: cfg.skills || skills });
+    let agentSkills = cfg.skills || allSkills;
+    if (opts.skills.length > 0) {
+      agentSkills = agentSkills.filter(s => opts.skills.includes(s));
+    }
+    targets.push({ name, path: resolvePath(cfg.path), skills: agentSkills });
   }
   for (const t of opts.targets) {
     targets.push({ name: path.basename(resolvePath(t)), path: resolvePath(t), skills });
@@ -234,6 +262,14 @@ async function main() {
         if (!shouldOverwrite) {
           console.log(`  ${colors.dim}${target.name}/${skillName} — skipped${colors.reset}`);
           skipped++;
+          continue;
+        }
+
+        // Safety check: verify linkPath is a reasonable path (not root or empty)
+        const resolvedLinkPath = path.resolve(linkPath);
+        if (resolvedLinkPath === '/' || resolvedLinkPath === path.dirname(resolvedLinkPath)) {
+          console.log(`  ${colors.red}✗ Refusing to remove ${linkPath} — path too shallow.${colors.reset}`);
+          errors++;
           continue;
         }
 
