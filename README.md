@@ -34,7 +34,7 @@ node link.js                          Link all skills to all configured agents
 node link.js --target <path>          Add a custom target directory
 node link.js --skill <name>           Link only specific skill(s) (repeatable)
 node link.js --dry-run                Preview without making changes
-node link.js --yes (-y)                Auto-overwrite without prompting
+node link.js --yes                    Auto-overwrite without prompting
 node link.js --init                   Create a default skills.json
 node link.js --help                   Show help
 ```

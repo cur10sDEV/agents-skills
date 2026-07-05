@@ -3,16 +3,15 @@
 const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const PAGE_WIDTH = 900;
 const PADDING = 40;
 const OUTPUT_FORMAT = 'png';
 const DEVICE_SCALE_FACTOR = 2;
 
-const BASE_DIR = path.join(
-  process.env.HOME || '~',
-  'Downloads', 'linkedin'
-);
+const BASE_DIR = process.env.LINKEDIN_OUTPUT_BASE
+  || path.join(os.homedir(), 'Downloads', 'linkedin');
 
 async function renderHtmlToImage(htmlPath, outputPath, browser) {
   const absoluteHtmlPath = path.resolve(htmlPath);
@@ -64,13 +63,16 @@ function printHelp() {
   node render.js <file1.html> [file2.html ...]
 
 Options:
-  --topic <slug>    Post topic slug (creates ~/Downloads/linkedin/<slug>/output/)
+  --topic <slug>    Post topic slug (creates $LINKEDIN_OUTPUT_BASE/<slug>/output/)
   --dir <directory> Render all .html files in a directory
   --outdir <path>   Override output directory (ignores --topic)
   --help            Show this message
 
+Environment:
+  LINKEDIN_OUTPUT_BASE  Base output directory (default: ${BASE_DIR})
+
 Output structure (with --topic):
-  ~/Downloads/linkedin/<slug>/
+  $LINKEDIN_OUTPUT_BASE/<slug>/
   ├── 1-problem.html
   ├── 2-mechanism.html
   └── output/
@@ -78,7 +80,7 @@ Output structure (with --topic):
       ├── 2-mechanism.png
 
 Without --topic (flat fallback):
-  ~/Downloads/linkedin/output/
+  $LINKEDIN_OUTPUT_BASE/output/
 
 Examples:
   node render.js --topic weak-refs /path/to/1-problem.html /path/to/2-mechanism.html
@@ -131,12 +133,24 @@ async function main() {
   }
 
   // Find Chrome executable
-  const chromePaths = [
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-  ];
+  const isMac = process.platform === 'darwin';
+  const isWin = process.platform === 'win32';
+  const chromePaths = isMac
+    ? [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      ]
+    : isWin
+    ? [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      ]
+    : [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+      ];
 
   let chromePath = null;
   for (const p of chromePaths) {

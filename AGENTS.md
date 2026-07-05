@@ -13,7 +13,7 @@ node link.js --init        # create default skills.json
 node link.js --help        # full flag reference
 ```
 
-Zero dependencies — uses only Node.js built-ins (`fs`, `path`, `os`, `readline`).
+Zero dependencies — uses only Node.js built-ins (`fs`, `path`, `os`).
 
 ## How skills are discovered
 
@@ -37,9 +37,7 @@ Zero dependencies — uses only Node.js built-ins (`fs`, `path`, `os`, `readline
 
 ## Conventions
 
-- `docs/superpowers/specs/` — design documents
-- `docs/superpowers/plans/` — implementation plans
-- These dirs are excluded from skill discovery
+- `docs/` — excluded from skill discovery (along with `node_modules` and dot-prefixed dirs)
 - Symlinks are relative (portable across mounts and machines)
 - Non-TTY output strips ANSI color codes automatically
 

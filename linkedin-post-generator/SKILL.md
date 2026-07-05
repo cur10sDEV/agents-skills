@@ -95,6 +95,20 @@ Every infographic is a **single self-contained HTML file** (inline `<style>`, no
 
 **Rule:** every accent color has a fixed (background, border, text) triplet. Never mix — e.g. green text always pairs with `#0d2214` background and `#2a5030` border. This is what makes every image "feel" like the same design system even though the accent color rotates per section.
 
+**Mapping accent colors to CSS custom properties.** Each infographic picks ONE accent color from the table above. Define these four custom properties in that file's `<style>` block by mapping the chosen accent's triplet:
+
+```css
+/* Example: choosing BLUE as the accent for this infographic */
+:root {
+  --accent-text:    #7aaacf;   /* text color from the accent triplet */
+  --accent-bg:      #0d1e2e;   /* background from the accent triplet */
+  --accent-border:  #1e3a54;   /* border from the accent triplet */
+  --accent-solid:   #7aaacf;   /* same as --accent-text, used for solid fills (left-border, dot, strong) */
+}
+```
+
+Use these `--accent-*` properties in all component patterns that reference them (`.tag`, `.callout`, `.insight`, `.q-num`, etc.). This keeps components accent-agnostic — swap the four values above and the whole infographic recolors consistently.
+
 ### 2.2 Typography
 
 Import via Google Fonts in every file's `<head>`:
@@ -392,9 +406,9 @@ Not every topic maps 1:1 to "problem → mechanism → application → decision"
 
 1. **Always deliver post text and images as separate deliverables.** Never suggest embedding HTML into a LinkedIn post. State plainly that LinkedIn doesn't support embedded interactive content and the images are meant to be screenshotted individually.
 2. **Post text comes first**, formatted as plain copy-paste-ready text (no markdown syntax visible, since LinkedIn doesn't render `**bold**` or `#headers`).
-3. **Then produce at least 4 HTML files**, one per image, named sequentially (e.g. `1-problem.html`, `2-mechanism.html`, `3-application.html`, `4-decisions.html`, and if needed `5-extended-case-study.html`, `6-deeper-tradeoffs.html`) — all inside a topic subdirectory at `/home/cur10sdev/Downloads/linkedin/{topic-slug}/`. Each file name should follow the pattern `{n}-{section-slug}.html`.
+3. **Then produce at least 4 HTML files**, one per image, named sequentially (e.g. `1-problem.html`, `2-mechanism.html`, `3-application.html`, `4-decisions.html`, and if needed `5-extended-case-study.html`, `6-deeper-tradeoffs.html`) — all inside a topic subdirectory at `$LINKEDIN_OUTPUT_BASE/{topic-slug}/` (defaults to `$HOME/Downloads/linkedin/{topic-slug}/`). Each file name should follow the pattern `{n}-{section-slug}.html`.
 4. **Review each HTML file for layout issues before rendering PNGs.** Check for missing spacing between sibling div elements, ensure cards have proper margins, and verify no content overlaps or gets clipped. Common issue: adjacent divs with no gap/margin between them causing elements to touch.
-5. **Then run the render script** (see Part 8.3) to generate PNG images from the HTML files.
+5. **Then run the render script** (see Part 9.3) to generate PNG images from the HTML files.
 6. **All images in a series must share:** identical `--bg`, `--surface`, `--border` base tokens, identical font stack, identical `.wrap` width, identical footer structure, identical page-number badge style. Only the accent color rotates per image's role.
 7. If revising a subset of images (e.g. "make these consistent," "redo image 3"), always re-check against this exact token list before finalizing — the most common failure mode is drifting to a light theme or a different accent palette on one image while others stay dark. Confirm every image in a series uses `#0e1621` background before delivering.
 8. Close each delivery with a short, non-repetitive summary of what each image covers (1–2 lines per image) — do not restate the full visual content, since the person already sees it rendered. Also include a note on the total image count.
@@ -451,25 +465,25 @@ POST TEXT ARC:
 
 When a user gives you a technical topic and asks for "a post like the ones in [reference series]":
 
-1. **Create the topic directory:** `/home/cur10sdev/Downloads/linkedin/{topic-slug}/` (use kebab-case slug, e.g. `weak-refs`, `h-blocking`).
+1. **Create the topic directory:** `$LINKEDIN_OUTPUT_BASE/{topic-slug}/` (use kebab-case slug, e.g. `weak-refs`, `h-blocking`). If `LINKEDIN_OUTPUT_BASE` is not set, use `$HOME/Downloads/linkedin/`.
 2. Write the LinkedIn post text as `post-text.md` inside the topic directory, following Part 1 exactly. Do not skip the honest-tradeoffs section under any circumstance.
 3. Identify the image breakdown for this specific topic using the arc in Part 3 (problem → mechanism → application → decision), adapting labels to fit the topic naturally. Default to 4 images, but scale up if the topic is dense enough to warrant more.
 4. Build each HTML file using ONLY the color tokens, fonts, and component patterns defined in Part 2. Do not invent new colors, new fonts, or a light theme unless the user explicitly requests a different theme. Name them sequentially (e.g. `1-problem.html`, `2-mechanism.html`, `3-application.html`, `4-decisions.html`, plus `5-*.html`, `6-*.html` if needed) inside the topic directory.
 5. Keep `.wrap` width and body padding identical across all files in the series.
 6. Every image gets the standard tag pill, Fraunces headline with italicized accent word, lead paragraph, 1+ content sections built from the component patterns in Part 2, and the standard footer with correct page number (n/{{total}}) and topic title. `{{total}}` is the total number of infographics in this series.
 7. **Review HTML files before rendering.** Open each HTML file in a browser or visually inspect the code for spacing/layout issues — check for missing margins between sibling div elements, overlapping content, text cutoff, or elements too close together. Verify code blocks use `white-space:pre` so lines display vertically, not wrapping inline. Fix any visual issues before proceeding.
-8. **Run the render script** via Bash to generate PNGs (see Part 8.3 for the exact command).
+8. **Run the render script** (`render.js`, co-located with this SKILL.md) via Bash to generate PNGs (see Part 9.3 for the exact command). Resolve the path to `render.js` from this skill's directory — use absolute paths, not relative ones.
 9. Deliver post text, HTML files, and PNG files separately, with a short non-redundant summary at the end.
-9. If asked to make an existing set of images "consistent," always default to converting outliers to the dark theme defined here (`#0e1621` base) — this is the canonical theme for this whole content system.
-10. **Run the review checklist (Part 9)** before final delivery — verify character count, readability, SEO, engagement hooks, and technical integrity.
+10. If asked to make an existing set of images "consistent," always default to converting outliers to the dark theme defined here (`#0e1621` base) — this is the canonical theme for this whole content system.
+11. **Run the review checklist (Part 8)** before final delivery — verify character count, readability, SEO, engagement hooks, and technical integrity.
 
 ---
 
-## PART 9 — REVIEW & QUALITY ASSURANCE
+## PART 8 — REVIEW & QUALITY ASSURANCE
 
 Before delivering any post, run through this review checklist to maximize reach and impact while preserving technical integrity.
 
-### 9.1 Post Text Review
+### 8.1 Post Text Review
 
 1. **Character count check.** Paste the post text into a character counter (or count programmatically). Confirm it stays under 3000 characters (LinkedIn's enforced limit). If over, trim ruthlessly — shorten examples, tighten code blocks, merge adjacent points.
 
@@ -479,7 +493,7 @@ Before delivering any post, run through this review checklist to maximize reach 
 
 4. **Section balance check.** No single section should dominate. If the mechanism section is 3x longer than the tradeoffs section, you're over-tutorializing — cut mechanism detail and move some to the infographic.
 
-### 9.2 SEO & Discoverability
+### 8.2 SEO & Discoverability
 
 1. **Hashtag strategy.** Use 6–8 hashtags: 2–3 broad (#SoftwareEngineering, #SystemDesign) and 4–5 specific (#Kafka, #Java, #Postgres). Broad tags maximize reach; specific tags find the right audience. Avoid hashtags with fewer than 10K followers — they contribute noise, not signal. Check follower counts by searching the hashtag on LinkedIn.
 
@@ -487,7 +501,7 @@ Before delivering any post, run through this review checklist to maximize reach 
 
 3. **Specificity signals.** Include real numbers, real tool names, real error messages, and real command-line flags. LinkedIn's algorithm favors concrete, actionable content over abstract generalizations — and so do readers.
 
-### 9.3 Engagement & Virality Mechanics (Without Selling Out)
+### 8.3 Engagement & Virality Mechanics (Without Selling Out)
 
 1. **The "teach, don't preach" test.** Re-read the post. If any sentence sounds like someone trying to sound smart rather than trying to make the reader smart, rewrite it. The most viral tech posts on LinkedIn are the ones that genuinely teach — readers reshare because they want to be the person who *shared* the insight, not because they agree with a hot take.
 
@@ -501,7 +515,7 @@ Before delivering any post, run through this review checklist to maximize reach 
 
 6. **Shareability hook.** Ensure at least one line in the post is quotable standalone — a one-sentence insight someone could screenshot and repost. This is usually the reframe/thesis statement or the golden-rule callout. Offset it visually with an em-dash and a line break.
 
-### 9.4 Technical Integrity Gate
+### 8.4 Technical Integrity Gate
 
 1. **Specificity check.** Run every technical claim through the "can I name the syscall, the algorithm, the error message, the command, the version?" filter. Generic claims ("it's faster") are replaced with specific ones ("2.3x throughput improvement on NVMe drives, measured with `fio --rw=randread --size=4G`").
 
@@ -515,22 +529,18 @@ Before delivering any post, run through this review checklist to maximize reach 
 
 ---
 
-## PART 8 — PNG RENDERING (AUTOMATED)
+## PART 9 — PNG RENDERING (AUTOMATED)
 
-After generating the post text and HTML infographics, automatically render them to PNG images. The skill includes a `render.js` script that uses headless Chrome to screenshot each HTML file at 900px width, 2x retina quality, with 40px padding on all sides.
+After generating the post text and HTML infographics, automatically render them to PNG images. The skill includes a `render.js` script (co-located with this SKILL.md) that uses headless Chrome to screenshot each HTML file at 900px width, 2x retina quality, with 40px padding on all sides. Resolve the render script path from this skill's directory — do not use a hardcoded absolute path.
 
-### 8.1 Output Directory
+### 9.1 Output Directory
 
-**All generated content always goes under this fixed base path, regardless of the current working directory:**
-
-```
-/home/cur10sdev/Downloads/linkedin/
-```
+**All generated content goes under `$LINKEDIN_OUTPUT_BASE/` (default: `$HOME/Downloads/linkedin/`), regardless of the current working directory.**
 
 Each post gets its own subdirectory named with a topic slug. The directory is auto-created if it does not exist. Structure:
 
 ```
-/home/cur10sdev/Downloads/linkedin/
+$LINKEDIN_OUTPUT_BASE/                 # default: $HOME/Downloads/linkedin/
 ├── {topic-slug}/                    # one directory per post
 │   ├── post-text.md                 # the LinkedIn post text
 │   ├── 1-problem.html               # HTML infographics (minimum 4)
@@ -551,42 +561,44 @@ Each post gets its own subdirectory named with a topic slug. The directory is au
 │   └── ...
 ```
 
-### 8.2 File Naming Convention
+> **Portability:** Set `LINKEDIN_OUTPUT_BASE` in your environment to override the output location. If unset, defaults to `$HOME/Downloads/linkedin/`. This allows the skill to work on any machine without modifying files.
+
+### 9.2 File Naming Convention
 
 Use this pattern for generated files. The HTML files do NOT carry the topic slug in their name — they live inside the topic directory:
 
 | File type | Name | Location |
 |---|---|---|
-| Post text | `post-text.md` | `~/Downloads/linkedin/{topic}/` |
-| HTML files | `1-problem.html`, `2-mechanism.html`, `3-application.html`, `4-decisions.html` (plus `5-*.html`, `6-*.html` if needed for dense topics) | `~/Downloads/linkedin/{topic}/` |
-| PNG files | Same names as HTML, `.png` extension | `~/Downloads/linkedin/{topic}/output/` |
+| Post text | `post-text.md` | `$LINKEDIN_OUTPUT_BASE/{topic}/` |
+| HTML files | `1-problem.html`, `2-mechanism.html`, `3-application.html`, `4-decisions.html` (plus `5-*.html`, `6-*.html` if needed for dense topics) | `$LINKEDIN_OUTPUT_BASE/{topic}/` |
+| PNG files | Same names as HTML, `.png` extension | `$LINKEDIN_OUTPUT_BASE/{topic}/output/` |
 
 The topic slug should be a short kebab-case identifier (e.g. `weak-refs`, `h-blocking`, `zero-copy-kafka`).
 
-### 8.3 Rendering Workflow
+### 9.3 Rendering Workflow
 
 After writing all 4 HTML files and post text to the topic directory, **review each HTML file for visual correctness** — verify spacing between sibling elements, check that cards/panels have proper margins, and confirm no content is clipped or overlapping. Once confirmed, run the render script via Bash:
 
 ```bash
-node /home/cur10sdev/.config/opencode/skills/linkedin-post-generator/render.js \
+node <path-to-this-skill-dir>/render.js \
   --topic weak-refs \
-  /home/cur10sdev/Downloads/linkedin/weak-refs/1-problem.html \
-  /home/cur10sdev/Downloads/linkedin/weak-refs/2-mechanism.html \
-  /home/cur10sdev/Downloads/linkedin/weak-refs/3-application.html \
-  /home/cur10sdev/Downloads/linkedin/weak-refs/4-decisions.html
+  $LINKEDIN_OUTPUT_BASE/weak-refs/1-problem.html \
+  $LINKEDIN_OUTPUT_BASE/weak-refs/2-mechanism.html \
+  $LINKEDIN_OUTPUT_BASE/weak-refs/3-application.html \
+  $LINKEDIN_OUTPUT_BASE/weak-refs/4-decisions.html
 ```
 
 Or use `--dir` to render all HTML files in the topic directory at once:
 
 ```bash
-node /home/cur10sdev/.config/opencode/skills/linkedin-post-generator/render.js \
+node <path-to-this-skill-dir>/render.js \
   --topic weak-refs \
-  --dir /home/cur10sdev/Downloads/linkedin/weak-refs/
+  --dir $LINKEDIN_OUTPUT_BASE/weak-refs/
 ```
 
-The `--topic <slug>` flag tells the script to output PNGs to `~/Downloads/linkedin/<slug>/output/`. Without `--topic`, PNGs go to the flat fallback at `~/Downloads/linkedin/output/`.
+The `--topic <slug>` flag tells the script to output PNGs to `$LINKEDIN_OUTPUT_BASE/<slug>/output/`. Without `--topic`, PNGs go to the flat fallback at `$LINKEDIN_OUTPUT_BASE/output/`.
 
-### 8.4 Dependencies
+### 9.4 Dependencies
 
 The render script requires:
 - **Node.js** (v18+)
@@ -595,12 +607,12 @@ The render script requires:
 
 No bundled Chromium — the script uses the system Chrome binary. Set `CHROME_PATH` env var if Chrome is installed at a non-standard path.
 
-### 8.5 Verifying Output
+### 9.5 Verifying Output
 
 After running the render script, confirm the PNG files exist and are non-empty:
 
 ```bash
-ls -lh /home/cur10sdev/Downloads/linkedin/{topic}/output/
+ls -lh $LINKEDIN_OUTPUT_BASE/{topic}/output/
 ```
 
 Deliver the post text, HTML files, and PNG files. The user can copy the post text directly into LinkedIn and upload the PNGs as a carousel.
