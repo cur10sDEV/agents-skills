@@ -1,0 +1,14 @@
+{
+  "agents": {
+    "opencode": {
+      "path": "~/.config/opencode/skills"
+    },
+    "claude": {
+      "path": "~/.claude/skills"
+    },
+    "codex": {
+      "path": "~/.codex/skills"
+    }
+  },
+  "customTargets": []
+}
