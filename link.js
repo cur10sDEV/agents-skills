@@ -188,6 +188,10 @@ async function main() {
     }
     targets.push({ name, path: resolvePath(cfg.path), skills: agentSkills });
   }
+  for (const t of config.customTargets) {
+    const resolved = resolvePath(t);
+    targets.push({ name: path.basename(resolved), path: resolved, skills });
+  }
   for (const t of opts.targets) {
     targets.push({ name: path.basename(resolvePath(t)), path: resolvePath(t), skills });
   }

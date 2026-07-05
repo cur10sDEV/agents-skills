@@ -14,7 +14,7 @@ node link.js               # link all skills to all configured agents
 
 ## How the linker works
 
-`link.js` discovers skill directories (any folder containing a `SKILL.md`), then creates **symlinks** from the repo into each agent's config directory (e.g., `~/.config/opencode/skills/`). Because they're symlinks, edits in the repo are reflected immediately — no re-linking needed.
+`link.js` discovers skill directories (any folder containing a `SKILL.md`), then creates **symlinks** from the repo into each agent's config directory (e.g., `~/.config/opencode/skills/`). Directories starting with a dot (`.`) are excluded. Because they're symlinks, edits in the repo are reflected immediately — no re-linking needed.
 
 The linker checks for existing symlinks and skips or prompts before overwriting. A safety guard prevents accidentally removing paths that are too shallow (like `/`).
 
@@ -34,7 +34,7 @@ node link.js                          Link all skills to all configured agents
 node link.js --target <path>          Add a custom target directory
 node link.js --skill <name>           Link only specific skill(s) (repeatable)
 node link.js --dry-run                Preview without making changes
-node link.js --yes                    Auto-overwrite without prompting
+node link.js --yes (-y)                Auto-overwrite without prompting
 node link.js --init                   Create a default skills.json
 node link.js --help                   Show help
 ```
