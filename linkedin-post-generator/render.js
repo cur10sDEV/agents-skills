@@ -1,0 +1,211 @@
+#!/usr/bin/env node
+
+const puppeteer = require('puppeteer-core');
+const path = require('path');
+const fs = require('fs');
+
+const PAGE_WIDTH = 900;
+const PADDING = 40;
+const OUTPUT_FORMAT = 'png';
+const DEVICE_SCALE_FACTOR = 2;
+
+const BASE_DIR = path.join(
+  process.env.HOME || '~',
+  'Downloads', 'linkedin'
+);
+
+async function renderHtmlToImage(htmlPath, outputPath, browser) {
+  const absoluteHtmlPath = path.resolve(htmlPath);
+  const fileUrl = `file://${absoluteHtmlPath}`;
+
+  const page = await browser.newPage();
+  await page.setViewport({
+    width: PAGE_WIDTH,
+    height: 800,
+    deviceScaleFactor: DEVICE_SCALE_FACTOR,
+  });
+
+  await page.goto(fileUrl, { waitUntil: 'networkidle0', timeout: 15000 });
+  await page.evaluate(() => document.fonts.ready);
+
+  await page.evaluate((padding) => {
+    // Set base text color so unwrapped text is readable on dark background
+    document.body.style.color = '#f0ece4';
+    document.body.style.minHeight = 'auto';
+    document.body.style.height = 'auto';
+    document.body.style.padding = `${padding}px`;
+    document.body.style.boxSizing = 'border-box';
+
+    document.querySelectorAll('*').forEach(el => {
+      const cs = getComputedStyle(el);
+      if (cs.minHeight === '100vh') {
+        el.style.minHeight = 'auto';
+      }
+    });
+
+    document.documentElement.style.height = 'auto';
+    document.documentElement.style.minHeight = 'auto';
+  }, PADDING);
+
+  await page.screenshot({
+    path: outputPath,
+    type: OUTPUT_FORMAT,
+    fullPage: true,
+  });
+
+  await page.close();
+  console.log(`\u2713 ${path.basename(outputPath)}`);
+}
+
+function printHelp() {
+  console.log(`Usage:
+  node render.js --topic <slug> <file1.html> [file2.html ...]
+  node render.js --topic <slug> --dir <directory>
+  node render.js <file1.html> [file2.html ...]
+
+Options:
+  --topic <slug>    Post topic slug (creates ~/Downloads/linkedin/<slug>/output/)
+  --dir <directory> Render all .html files in a directory
+  --outdir <path>   Override output directory (ignores --topic)
+  --help            Show this message
+
+Output structure (with --topic):
+  ~/Downloads/linkedin/<slug>/
+  ├── 1-problem.html
+  ├── 2-mechanism.html
+  └── output/
+      ├── 1-problem.png
+      ├── 2-mechanism.png
+
+Without --topic (flat fallback):
+  ~/Downloads/linkedin/output/
+
+Examples:
+  node render.js --topic weak-refs /path/to/1-problem.html /path/to/2-mechanism.html
+  node render.js --topic weak-refs --dir /path/to/html/files/
+  node render.js /path/to/files/*.html
+
+Chrome:
+  Set CHROME_PATH env var to override auto-detected Chrome path.`);
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.includes('--help') || args.includes('-h')) {
+    printHelp();
+    process.exit(0);
+  }
+
+  if (args.length === 0) {
+    printHelp();
+    process.exit(1);
+  }
+
+  // Parse flags
+  let outputDir = null;
+  let topic = null;
+  const filteredArgs = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--topic' && args[i + 1]) {
+      topic = args[++i];
+    } else if (args[i] === '--outdir' && args[i + 1]) {
+      outputDir = path.resolve(args[++i]);
+    } else {
+      filteredArgs.push(args[i]);
+    }
+  }
+
+  // Resolve output directory
+  if (!outputDir) {
+    if (topic) {
+      outputDir = path.join(BASE_DIR, topic, 'output');
+    } else {
+      outputDir = path.join(BASE_DIR, 'output');
+    }
+  }
+
+  // Auto-create output directory
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // Find Chrome executable
+  const chromePaths = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ];
+
+  let chromePath = null;
+  for (const p of chromePaths) {
+    if (fs.existsSync(p)) {
+      chromePath = p;
+      break;
+    }
+  }
+
+  chromePath = process.env.CHROME_PATH || chromePath;
+
+  if (!chromePath) {
+    console.error('Error: Chrome/Chromium not found. Install google-chrome or set CHROME_PATH env var.');
+    process.exit(1);
+  }
+
+  // Collect HTML files
+  let htmlFiles = [];
+  if (filteredArgs[0] === '--dir') {
+    const dir = path.resolve(filteredArgs[1] || '.');
+    htmlFiles = fs.readdirSync(dir)
+      .filter(f => f.endsWith('.html'))
+      .map(f => path.join(dir, f));
+  } else {
+    htmlFiles = filteredArgs.map(f => path.resolve(f));
+  }
+
+  // Filter to only existing .html files
+  htmlFiles = htmlFiles.filter(f => {
+    if (fs.existsSync(f) && f.endsWith('.html')) return true;
+    console.warn(`Skipping ${f} (not found or not .html)`);
+    return false;
+  });
+
+  if (htmlFiles.length === 0) {
+    console.error('No valid HTML files found.');
+    process.exit(1);
+  }
+
+  console.log(`Using Chrome: ${chromePath}`);
+  console.log(`Output dir:  ${outputDir}`);
+  console.log(`Rendering ${htmlFiles.length} file(s)...\n`);
+
+  const browser = await puppeteer.launch({
+    executablePath: chromePath,
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-gpu',
+      '--font-render-hinting=none',
+    ],
+  });
+
+  for (const htmlFile of htmlFiles) {
+    const baseName = path.basename(htmlFile, '.html');
+    const outputPath = path.join(outputDir, `${baseName}.png`);
+    try {
+      await renderHtmlToImage(htmlFile, outputPath, browser);
+    } catch (err) {
+      console.error(`\u2717 ${path.basename(htmlFile)}: ${err.message}`);
+    }
+  }
+
+  await browser.close();
+  console.log(`\nDone. Images saved to ${outputDir}/`);
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
