@@ -408,10 +408,10 @@ Not every topic maps 1:1 to "problem → mechanism → application → decision"
 2. **Post text comes first**, formatted as plain copy-paste-ready text (no markdown syntax visible, since LinkedIn doesn't render `**bold**` or `#headers`).
 3. **Then produce at least 4 HTML files**, one per image, named sequentially (e.g. `1-problem.html`, `2-mechanism.html`, `3-application.html`, `4-decisions.html`, and if needed `5-extended-case-study.html`, `6-deeper-tradeoffs.html`) — all inside a topic subdirectory at `$LINKEDIN_OUTPUT_BASE/{topic-slug}/` (defaults to `$HOME/Downloads/linkedin/{topic-slug}/`). Each file name should follow the pattern `{n}-{section-slug}.html`.
 4. **Review each HTML file for layout issues before rendering PNGs.** Check for missing spacing between sibling div elements, ensure cards have proper margins, and verify no content overlaps or gets clipped. Common issue: adjacent divs with no gap/margin between them causing elements to touch.
-5. **Then run the render script** (see Part 9.3) to generate PNG images from the HTML files.
+5. **Then run the render script** (see Part 9.3) to generate both individual PNG previews and the combined multi-page PDF. The PDF (`{topic-slug}-carousel.pdf`) is the primary LinkedIn deliverable — upload it directly as a LinkedIn document post (creates the swipeable carousel). The PNG files are for quick preview only.
 6. **All images in a series must share:** identical `--bg`, `--surface`, `--border` base tokens, identical font stack, identical `.wrap` width, identical footer structure, identical page-number badge style. Only the accent color rotates per image's role.
 7. If revising a subset of images (e.g. "make these consistent," "redo image 3"), always re-check against this exact token list before finalizing — the most common failure mode is drifting to a light theme or a different accent palette on one image while others stay dark. Confirm every image in a series uses `#0e1621` background before delivering.
-8. Close each delivery with a short, non-repetitive summary of what each image covers (1–2 lines per image) — do not restate the full visual content, since the person already sees it rendered. Also include a note on the total image count.
+8. Close each delivery with a short, non-repetitive summary of what each image covers (1–2 lines per image), a note on the total image count, and confirmation that the combined PDF is ready for upload.
 
 ---
 
@@ -446,6 +446,7 @@ LAYOUT:
   .wrap width: 780-820px (fixed per series)
   card radius: 10-14px
   standard gap between grid panels: 10-14px
+  PDF page: 1080×1350px (4:5 portrait), combined {topic}-carousel.pdf
 
 IMAGE ARC (minimum 4, more if topic demands):
   1. Problem (red)         — what's broken / naive / costly
@@ -472,8 +473,8 @@ When a user gives you a technical topic and asks for "a post like the ones in [r
 5. Keep `.wrap` width and body padding identical across all files in the series.
 6. Every image gets the standard tag pill, Fraunces headline with italicized accent word, lead paragraph, 1+ content sections built from the component patterns in Part 2, and the standard footer with correct page number (n/{{total}}) and topic title. `{{total}}` is the total number of infographics in this series.
 7. **Review HTML files before rendering.** Open each HTML file in a browser or visually inspect the code for spacing/layout issues — check for missing margins between sibling div elements, overlapping content, text cutoff, or elements too close together. Verify code blocks use `white-space:pre` so lines display vertically, not wrapping inline. Fix any visual issues before proceeding.
-8. **Run the render script** (`render.js`, co-located with this SKILL.md) via Bash to generate PNGs (see Part 9.3 for the exact command). Resolve the path to `render.js` from this skill's directory — use absolute paths, not relative ones.
-9. Deliver post text, HTML files, and PNG files separately, with a short non-redundant summary at the end.
+8. **Run the render script** (`render.js`, co-located with this SKILL.md) via Bash to generate PNGs and the combined multi-page PDF (see Part 9.3 for the exact command). Resolve the path to `render.js` from this skill's directory — use absolute paths, not relative ones.
+9. Deliver post text, HTML files, individual PNGs, and the combined PDF separately, with a short non-redundant summary at the end.
 10. If asked to make an existing set of images "consistent," always default to converting outliers to the dark theme defined here (`#0e1621` base) — this is the canonical theme for this whole content system.
 11. **Run the review checklist (Part 8)** before final delivery — verify character count, readability, SEO, engagement hooks, and technical integrity.
 
@@ -529,9 +530,11 @@ Before delivering any post, run through this review checklist to maximize reach 
 
 ---
 
-## PART 9 — PNG RENDERING (AUTOMATED)
+## PART 9 — RENDERING (PNG + PDF)
 
-After generating the post text and HTML infographics, automatically render them to PNG images. The skill includes a `render.js` script (co-located with this SKILL.md) that uses headless Chrome to screenshot each HTML file at 900px width, 2x retina quality, with 40px padding on all sides. Resolve the render script path from this skill's directory — do not use a hardcoded absolute path.
+After generating the post text and HTML infographics, automatically render them to both individual PNG previews and a combined multi-page PDF. The skill includes a `render.js` script (co-located with this SKILL.md) that uses headless Chrome to render each HTML file. Resolve the render script path from this skill's directory — do not use a hardcoded absolute path.
+
+**Key difference from PNG-only:** The PDF is generated via Puppeteer's `page.pdf()`, which preserves text as selectable vectors. When uploaded as a LinkedIn document post, the PDF carousel displays at full quality — no compression artifacts — and viewers can save it for later reference. PNGs are generated via `page.screenshot()` for quick preview.
 
 ### 9.1 Output Directory
 
@@ -549,13 +552,14 @@ $LINKEDIN_OUTPUT_BASE/                 # default: $HOME/Downloads/linkedin/
 │   ├── 4-decisions.html
 │   ├── 5-extended-case-study.html   # optional extra images for dense topics
 │   ├── 6-deeper-tradeoffs.html      # (if needed, add more)
-│   └── output/                      # rendered PNGs
-│       ├── 1-problem.png
+│   └── output/                      # rendered output
+│       ├── 1-problem.png            # individual PNG previews
 │       ├── 2-mechanism.png
 │       ├── 3-application.png
 │       ├── 4-decisions.png
 │       ├── 5-extended-case-study.png
 │       ├── 6-deeper-tradeoffs.png
+│       └── {topic-slug}-carousel.pdf # ★ combined multi-page PDF (LinkedIn deliverable)
 ├── {another-topic}/
 │   ├── post-text.md
 │   └── ...
@@ -568,27 +572,17 @@ $LINKEDIN_OUTPUT_BASE/                 # default: $HOME/Downloads/linkedin/
 Use this pattern for generated files. The HTML files do NOT carry the topic slug in their name — they live inside the topic directory:
 
 | File type | Name | Location |
-|---|---|---|
+|---|---|---|---|
 | Post text | `post-text.md` | `$LINKEDIN_OUTPUT_BASE/{topic}/` |
 | HTML files | `1-problem.html`, `2-mechanism.html`, `3-application.html`, `4-decisions.html` (plus `5-*.html`, `6-*.html` if needed for dense topics) | `$LINKEDIN_OUTPUT_BASE/{topic}/` |
 | PNG files | Same names as HTML, `.png` extension | `$LINKEDIN_OUTPUT_BASE/{topic}/output/` |
+| Combined PDF | `{topic-slug}-carousel.pdf` | `$LINKEDIN_OUTPUT_BASE/{topic}/output/` |
 
 The topic slug should be a short kebab-case identifier (e.g. `weak-refs`, `h-blocking`, `zero-copy-kafka`).
 
 ### 9.3 Rendering Workflow
 
-After writing all 4 HTML files and post text to the topic directory, **review each HTML file for visual correctness** — verify spacing between sibling elements, check that cards/panels have proper margins, and confirm no content is clipped or overlapping. Once confirmed, run the render script via Bash:
-
-```bash
-node <path-to-this-skill-dir>/render.js \
-  --topic weak-refs \
-  $LINKEDIN_OUTPUT_BASE/weak-refs/1-problem.html \
-  $LINKEDIN_OUTPUT_BASE/weak-refs/2-mechanism.html \
-  $LINKEDIN_OUTPUT_BASE/weak-refs/3-application.html \
-  $LINKEDIN_OUTPUT_BASE/weak-refs/4-decisions.html
-```
-
-Or use `--dir` to render all HTML files in the topic directory at once:
+After writing all HTML files and post text to the topic directory, **review each HTML file for visual correctness** — verify spacing between sibling elements, check that cards/panels have proper margins, and confirm no content is clipped or overlapping. Once confirmed, run the render script via Bash:
 
 ```bash
 node <path-to-this-skill-dir>/render.js \
@@ -596,7 +590,31 @@ node <path-to-this-skill-dir>/render.js \
   --dir $LINKEDIN_OUTPUT_BASE/weak-refs/
 ```
 
-The `--topic <slug>` flag tells the script to output PNGs to `$LINKEDIN_OUTPUT_BASE/<slug>/output/`. Without `--topic`, PNGs go to the flat fallback at `$LINKEDIN_OUTPUT_BASE/output/`.
+This generates **both** individual PNG previews **and** the combined multi-page PDF. The PDF is saved as `$LINKEDIN_OUTPUT_BASE/weak-refs/output/weak-refs-carousel.pdf`.
+
+**Format control:**
+
+| Flag | Behavior |
+|------|----------|
+| `--format both` (default) | Generate individual PNGs + combined PDF |
+| `--format png` | Generate only PNGs (skip PDF, faster for iteration) |
+| `--format pdf` | Generate only the combined PDF (skip PNGs) |
+
+Example — iterate quickly with PNGs only:
+```bash
+node <path-to-this-skill-dir>/render.js \
+  --topic weak-refs --format png \
+  --dir $LINKEDIN_OUTPUT_BASE/weak-refs/
+```
+
+Example — final PDF-only export:
+```bash
+node <path-to-this-skill-dir>/render.js \
+  --topic weak-refs --format pdf \
+  --dir $LINKEDIN_OUTPUT_BASE/weak-refs/
+```
+
+The `--topic <slug>` flag tells the script to output to `$LINKEDIN_OUTPUT_BASE/<slug>/output/`. Without `--topic`, output goes to the flat fallback at `$LINKEDIN_OUTPUT_BASE/output/`. When rendering the combined PDF, the file is named `{topic-slug}-carousel.pdf` (or `carousel.pdf` if no topic is provided).
 
 ### 9.4 Dependencies
 
@@ -604,15 +622,30 @@ The render script requires:
 - **Node.js** (v18+)
 - **Google Chrome or Chromium** installed on the system
 - **puppeteer-core** npm package (already installed in this skill directory under `node_modules/`)
+- **pdf-lib** npm package (already installed in this skill directory under `node_modules/`)
 
 No bundled Chromium — the script uses the system Chrome binary. Set `CHROME_PATH` env var if Chrome is installed at a non-standard path.
 
 ### 9.5 Verifying Output
 
-After running the render script, confirm the PNG files exist and are non-empty:
+After running the render script, confirm the output files exist:
 
 ```bash
 ls -lh $LINKEDIN_OUTPUT_BASE/{topic}/output/
 ```
 
-Deliver the post text, HTML files, and PNG files. The user can copy the post text directly into LinkedIn and upload the PNGs as a carousel.
+Expected files:
+- `{topic}-carousel.pdf` — must exist and show the correct page count
+- `1-problem.png`, `2-mechanism.png`, etc. — individual PNGs for each slide
+
+Verify the PDF page count matches the number of HTML files:
+```bash
+node -e "const {PDFDocument}=require('pdf-lib');require('fs').readFile('$LINKEDIN_OUTPUT_BASE/{topic}/output/{topic}-carousel.pdf').then(b=>PDFDocument.load(b).then(d=>console.log('Pages:',d.getPageCount())))"
+```
+
+Or simply open the PDF in any viewer to confirm all slides are present and text is crisp/selectable (not rasterized).
+
+Deliver the post text, HTML files, individual PNGs, and the combined PDF. The user can:
+- Copy the post text directly into LinkedIn
+- Upload the combined PDF as a LinkedIn document post (creates the swipeable carousel)
+- Use the individual PNGs for quick previews
