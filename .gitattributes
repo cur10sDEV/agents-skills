@@ -1,0 +1,2 @@
+# Normalize lockfiles to LF to prevent cross-OS merge conflicts
+**/package-lock.json text eol=lf

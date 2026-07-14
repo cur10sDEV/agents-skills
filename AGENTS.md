@@ -65,6 +65,18 @@ Already-correct links are detected and skipped silently — this works for both 
 - Symlinks are relative (portable across mounts and machines); junctions are absolute (single-machine, portable across reboots)
 - Non-TTY output strips ANSI color codes automatically
 
+## Adding dependencies to a skill
+
+If a skill needs npm packages (e.g. the `linkedin-post-generator` depends on `puppeteer-core` and `pdf-lib`):
+
+1. `cd your-skill && npm install <package>` — run from inside the skill directory
+2. Commit both `package.json` and `package-lock.json`
+3. There is no step 3 — the root `.npmrc` (`lockfile-version=3`) and `.gitattributes` (`**/package-lock.json eol=lf`) ensure cross-OS lockfile stability automatically
+
+**Do not** manage dependencies from the repo root — there is no root `package.json`. Each skill is self-contained.
+
+**Pin the Node.js version** using `.nvmrc` (already present at root — update it when the LTS changes). This keeps lockfile generation consistent.
+
 ## No tests
 
 There is no test suite. Verify with `node link.js --dry-run`.
