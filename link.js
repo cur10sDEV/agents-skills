@@ -23,7 +23,7 @@ if (!process.stdout.isTTY) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { targets: [], skills: [], dryRun: false, yes: false, init: false, help: false };
+  const opts = { targets: [], skills: [], dryRun: false, yes: false, init: false, help: false, copy: false };
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--target':
@@ -43,6 +43,7 @@ function parseArgs() {
       case '--dry-run': opts.dryRun = true; break;
       case '--yes': case '-y': opts.yes = true; break;
       case '--init': opts.init = true; break;
+      case '--copy': opts.copy = true; break;
       case '--help': case '-h': opts.help = true; break;
       default:
         console.error(`Unknown option: ${args[i]}`);
@@ -57,6 +58,8 @@ function showHelp() {
 ${colors.cyan}agents-skills linker${colors.reset}
 
   Links skill directories from this repo into agent config directories.
+  Works cross-platform: symlinks on macOS/Linux, junctions on Windows
+  (with automatic copy fallback when elevated privileges are unavailable).
 
 ${colors.cyan}Usage:${colors.reset}
   node link.js                          Link all skills to all configured agents
@@ -64,21 +67,99 @@ ${colors.cyan}Usage:${colors.reset}
   node link.js --skill <name>           Link only specific skill(s) (repeatable)
   node link.js --dry-run                Preview without making changes
   node link.js --yes                    Auto-overwrite without prompting
+  node link.js --copy                   Copy instead of symlink/junction
   node link.js --init                   Create a default skills.json
   node link.js --help                   Show this help
+
+${colors.cyan}Cross-platform behavior:${colors.reset}
+  macOS / Linux   Relative symlinks (default)
+  Windows         Directory junctions (no admin needed); falls back to
+                  recursive copy if junctions are unavailable
+  --copy          Force copy on any platform (loses live-edit propagation)
+
+${colors.cyan}Default agent paths:${colors.reset}
+  opencode   ~/.config/opencode/skills   (Windows: %USERPROFILE%\\.config\\opencode\\skills)
+  claude     ~/.claude/skills             (Windows: %USERPROFILE%\\.claude\\skills)
+  codex      ~/.codex/skills              (Windows: %USERPROFILE%\\.codex\\skills)
 
 ${colors.cyan}Examples:${colors.reset}
   node link.js
   node link.js --target ~/.config/opencode/skills
   node link.js --skill linkedin-post-generator --yes
   node link.js --dry-run
+  node link.js --copy
 `);
 }
+
+const IS_WINDOWS = process.platform === 'win32';
 
 function resolvePath(p) {
   if (p.startsWith('~')) return path.join(os.homedir(), p.slice(1));
   return path.resolve(p);
 }
+
+// Establish a skill target. Tries, in order: symlink/junction, then copy.
+// Respects opts.copy (force copy) and opts.dryRun.
+// Returns { ok, method, display } on success, { ok: false, err } on failure.
+function linkOrCopy(sourcePath, linkPath, opts) {
+  const isWindows = IS_WINDOWS;
+  const relativePath = path.relative(path.dirname(linkPath), sourcePath);
+  const absolutePath = path.resolve(sourcePath);
+
+  // --copy: force recursive copy on all platforms.
+  if (opts.copy) {
+    try {
+      fs.cpSync(absolutePath, linkPath, { recursive: true });
+      return { ok: true, method: 'copy', display: relativePath };
+    } catch (err) {
+      return { ok: false, method: 'copy', err };
+    }
+  }
+
+  if (isWindows) {
+    // Junctions work without admin/Developer Mode. Require absolute target.
+    try {
+      fs.symlinkSync(absolutePath, linkPath, 'junction');
+      return { ok: true, method: 'junction', display: absolutePath };
+    } catch (err) {
+      if (err.code !== 'EPERM' && err.code !== 'EEXIST') {
+        return { ok: false, method: 'junction', err };
+      }
+      // Junction failed (locked-down box / different volume) — fall back to copy.
+    }
+  } else {
+    // macOS/Linux: relative dir symlink.
+    try {
+      fs.symlinkSync(relativePath, linkPath, 'dir');
+      return { ok: true, method: 'symlink', display: relativePath };
+    } catch (err) {
+      if (err.code !== 'EEXIST') {
+        return { ok: false, method: 'symlink', err };
+      }
+      // EEXIST handled by caller (linkPath already existed, deduped above).
+      throw err;
+    }
+  }
+
+  // Windows fallback: recursive copy.
+  try {
+    fs.cpSync(absolutePath, linkPath, { recursive: true });
+    return {
+      ok: true,
+      method: 'copy',
+      display: relativePath,
+      warning: 'copied (junction requires admin or Developer Mode on Windows)',
+    };
+  } catch (err) {
+    return { ok: false, method: 'copy', err };
+  }
+}
+
+const METHOD_LABEL = {
+  symlink:  'symlink',
+  junction: 'junction',
+  copy:     'copy',
+};
 
 function discoverSkills() {
   const entries = fs.readdirSync(REPO_ROOT, { withFileTypes: true });
@@ -238,7 +319,9 @@ async function main() {
         if (isLink) {
           const linkTarget = fs.readlinkSync(linkPath);
           const resolvedTarget = path.resolve(path.dirname(linkPath), linkTarget);
-          if (resolvedTarget === sourcePath) {
+          // Compare against the *resolved* sourcePath so absolute junction
+          // targets match relative symlinks — both resolve to the same path.
+          if (resolvedTarget === path.resolve(sourcePath)) {
             console.log(`  ${colors.dim}${target.name}/${skillName} — already linked ✓${colors.reset}`);
             skipped++;
             continue;
@@ -269,9 +352,11 @@ async function main() {
           continue;
         }
 
-        // Safety check: verify linkPath is a reasonable path (not root or empty)
+        // Safety check: verify linkPath is a reasonable path (not root or a parent-of-self).
         const resolvedLinkPath = path.resolve(linkPath);
-        if (resolvedLinkPath === '/' || resolvedLinkPath === path.dirname(resolvedLinkPath)) {
+        const parentResolved = path.dirname(resolvedLinkPath);
+        const isWindowsRoot = IS_WINDOWS && /^[A-Za-z]:\\$/.test(resolvedLinkPath);
+        if (resolvedLinkPath === path.parse(resolvedLinkPath).root || isWindowsRoot || resolvedLinkPath === parentResolved) {
           console.log(`  ${colors.red}✗ Refusing to remove ${linkPath} — path too shallow.${colors.reset}`);
           errors++;
           continue;
@@ -280,13 +365,17 @@ async function main() {
         fs.rmSync(linkPath, { recursive: true, force: true });
       }
 
-      try {
-        const relativePath = path.relative(path.dirname(linkPath), sourcePath);
-        fs.symlinkSync(relativePath, linkPath, 'dir');
-        console.log(`  ${colors.green}✓${colors.reset} ${target.name}/${skillName} → ${relativePath}`);
+      const result = linkOrCopy(sourcePath, linkPath, opts);
+      if (result.ok) {
+        const methodLabel = METHOD_LABEL[result.method] || result.method;
+        const arrow = result.method === 'copy' ? '⧉' : '→';
+        const warnTag = result.warning ? ` ${colors.yellow}(${result.warning})${colors.reset}` : '';
+        console.log(`  ${colors.green}✓${colors.reset} ${target.name}/${skillName} ${arrow} ${result.display} ${colors.dim}[${methodLabel}]${colors.reset}${warnTag}`);
         linked++;
-      } catch (err) {
-        console.log(`  ${colors.red}✗${colors.reset} ${target.name}/${skillName}: ${err.message}`);
+      } else {
+        const errMsg = result.err ? result.err.message : 'unknown error';
+        const methodLabel = METHOD_LABEL[result.method] || result.method;
+        console.log(`  ${colors.red}✗${colors.reset} ${target.name}/${skillName} (${methodLabel}): ${errMsg}`);
         errors++;
       }
     }
