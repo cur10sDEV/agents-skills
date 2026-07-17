@@ -93,9 +93,27 @@ async function renderHtmlToPdfBuffer(htmlPath, browser) {
     document.documentElement.style.minHeight = 'auto';
   }, PDF_PADDING);
 
+  // Resize viewport to full content height so nothing gets clipped in PDF
+  const contentHeight = await page.evaluate(() => {
+    const body = document.body;
+    const html = document.documentElement;
+    return Math.max(
+      body.scrollHeight, body.offsetHeight,
+      html.clientHeight, html.scrollHeight, html.offsetHeight
+    );
+  });
+
+  await page.setViewport({
+    width: PDF_PAGE_WIDTH,
+    height: Math.max(contentHeight, PDF_PAGE_HEIGHT),
+    deviceScaleFactor: DEVICE_SCALE_FACTOR,
+  });
+
+  const pdfHeight = Math.max(contentHeight, PDF_PAGE_HEIGHT);
+
   const pdfBuffer = await page.pdf({
     width: `${PDF_PAGE_WIDTH}px`,
-    height: `${PDF_PAGE_HEIGHT}px`,
+    height: `${pdfHeight}px`,
     printBackground: true,
     preferCSSPageSize: false,
     margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
