@@ -86,4 +86,4 @@ Check yourself:
 - <items the user should verify, if any; omit this block when there are none>
 ```
 
-If the draft path already existed and was overwritten, add one line saying so. The report lives in the chat reply only — never write it into the draft file.
+When the input was itself a `.humanized` draft refined in place, replace the `Original untouched` line with `Draft refined in place: <path> (the input was already a humanized draft)`. If the draft path already existed and was overwritten, add one line saying so. The report lives in the chat reply only — never write it into the draft file.
