@@ -1,10 +1,10 @@
 ---
-name: humanize-draft
+name: sound-human
 description: Removes AI-sounding words, phrases, and patterns from a document or pasted text by running the humanizer skill and then the stop-slop skill in sequence, then writes the result to a NEW draft file. Never edits the original in place. Use when the user asks to "humanize" text or a document, "de-slop" or "de-AI" writing, make text sound human or less AI-written, or wants a humanized draft or version of a file.
-version: 0.1.0
+version: 0.1.1
 ---
 
-# Humanize Draft: two-pass de-AI with a reviewable draft
+# Sound Human: two-pass de-AI with a reviewable draft
 
 ## Purpose
 

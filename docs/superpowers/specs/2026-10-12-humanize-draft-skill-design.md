@@ -128,3 +128,10 @@ Check yourself:
 - Beating AI detectors (humanizer's own stance: not a goal).
 - Non-text formats (`.docx`, PDFs).
 - Any local modifications to the vendored skills.
+
+## Rename note (2026-10-13)
+
+The orchestrator skill was renamed from `humanize-draft` to `sound-human` at the
+user's request after implementation. All references in this spec and the plan to
+`humanize-draft` refer to what is now the `sound-human` directory and skill ID.
+Draft-file naming (`report.humanized.md`) is unchanged.
