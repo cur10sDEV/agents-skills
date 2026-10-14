@@ -44,7 +44,7 @@ Options: see the table below. `--start`/`--end`/`--duration` accept `HH:MM:SS`, 
 | `--model <name>` | app's default model | Model name as listed by `GET /v1/transcribe/models` (e.g. `parakeet-unified-en-0.6b`) |
 | `--language <code>` | none | Optional language hint passed through to OpenWhispr |
 | `--force` | off | Overwrite an existing output `.txt` (refused otherwise) |
-| `--keep-audio` | off | Keep the extracted/trimmed `.wav` in the temp dir instead of deleting it |
+| `--keep-audio` | off | Keep the extracted/trimmed `.wav` in the temp dir instead of deleting it (kept wavs are swept after ~1 hour by a later run) |
 | `--no-launch` | off | Fail rather than auto-launch OpenWhispr when the app is closed |
 | `--timeout <seconds>` | 900 | Max wait for the transcription request |
 

@@ -193,11 +193,13 @@ export function runFfmpeg(args) {
   });
 }
 
+// Each run extracts into its own subdirectory so concurrent runs and
+// kept wavs can never be deleted by another run's cleanup.
 export function tmpWavPath(inputPath) {
-  const dir = tempWavDir();
-  fs.mkdirSync(dir, { recursive: true });
+  const runDir = path.join(tempWavDir(), `run-${process.pid}-${Date.now()}`);
+  fs.mkdirSync(runDir, { recursive: true });
   const base = path.basename(inputPath, path.extname(inputPath));
-  return path.join(dir, `${base}-${Date.now()}.wav`);
+  return path.join(runDir, `${base}.wav`);
 }
 
 function tempWavDir() {
@@ -206,16 +208,29 @@ function tempWavDir() {
     : path.join(os.tmpdir(), "media-to-notes");
 }
 
-// The temp dir is skill-owned: a successful non-keep run clears it entirely,
-// removing its own wav plus any leftovers kept by earlier --keep-audio or
-// failed runs (16 kHz wavs are ~2 MB per media minute, so they must not pile up).
-function cleanTempWavs() {
+// Stale run-dirs (kept via --keep-audio or stranded by a failure) are swept
+// once older than an hour, so 16 kHz wavs (~2 MB per media minute) cannot
+// accumulate unbounded. Only this skill's own subdirectories are touched.
+const TEMP_MAX_AGE_MS = 60 * 60 * 1000;
+
+function sweepStaleTempDirs() {
+  let entries;
   try {
-    for (const f of fs.readdirSync(tempWavDir())) {
-      if (f.endsWith(".wav")) fs.rmSync(path.join(tempWavDir(), f), { force: true });
-    }
+    entries = fs.readdirSync(tempWavDir(), { withFileTypes: true });
   } catch {
-    // dir may not exist — nothing to clean
+    return; // temp dir does not exist yet
+  }
+  const now = Date.now();
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const dir = path.join(tempWavDir(), e.name);
+    try {
+      if (now - fs.statSync(dir).mtimeMs > TEMP_MAX_AGE_MS) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    } catch {
+      // unreadable entry — leave it alone
+    }
   }
 }
 
@@ -430,6 +445,8 @@ export async function main(argv) {
       opts.start !== undefined || opts.end !== undefined || opts.duration !== undefined;
     let mediaPath = realInput;
 
+    sweepStaleTempDirs();
+
     // Video always needs extraction; audio needs ffmpeg only when trimming.
     if (kind === "video" || needsTrim) {
       if (kind === "video") {
@@ -478,8 +495,8 @@ export async function main(argv) {
     }
     fs.writeFileSync(outPath, `${result.text}\n`, "utf8");
 
-    if (!opts.keepAudio) {
-      cleanTempWavs();
+    if (tempWav && !opts.keepAudio) {
+      fs.rmSync(path.dirname(tempWav), { recursive: true, force: true });
     }
 
     process.stdout.write(`${outPath}\n`);
