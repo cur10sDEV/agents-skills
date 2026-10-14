@@ -4,7 +4,9 @@
 // Zero dependencies; Node >= 18.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { spawn, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 export class UsageError extends Error {
@@ -111,6 +113,86 @@ export function resolveOutputPath(inputPath, outFlag) {
     return path.resolve(outFlag, base);
   }
   return path.resolve(outFlag);
+}
+
+// --- ffmpeg stage -------------------------------------------------------------
+
+const VIDEO_EXTS = new Set([
+  ".mp4", ".mkv", ".mov", ".webm", ".avi", ".m4v", ".flv",
+  ".mpg", ".mpeg", ".ts", ".3gp",
+]);
+const AUDIO_EXTS = new Set([
+  ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac",
+  ".wma", ".amr", ".aiff",
+]);
+
+function ffprobeEntries(filePath, selectStreams) {
+  const r = spawnSync(
+    "ffprobe",
+    [
+      "-v", "error",
+      "-select_streams", selectStreams,
+      "-show_entries", "stream=codec_type",
+      "-of", "csv=p=0",
+      filePath,
+    ],
+    { encoding: "utf8" }
+  );
+  return (r.stdout || "").trim();
+}
+
+export function classifyInput(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (VIDEO_EXTS.has(ext)) return "video";
+  if (AUDIO_EXTS.has(ext)) return "audio";
+  // Unknown extension: fall back to ffprobe — any video stream means video.
+  return ffprobeEntries(filePath, "v:0").length > 0 ? "video" : "audio";
+}
+
+export function hasAudioStream(filePath) {
+  return ffprobeEntries(filePath, "a:0").length > 0;
+}
+
+const FFMPEG_AUDIO_ARGS = ["-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le"];
+
+export function buildFfmpegArgs(inputPath, wavPath, { start, end, duration } = {}) {
+  const seek = start === undefined ? "00:00:00" : String(start);
+  if (end !== undefined) {
+    return ["-ss", seek, "-to", String(end), "-i", inputPath, ...FFMPEG_AUDIO_ARGS, wavPath];
+  }
+  if (duration !== undefined) {
+    return ["-ss", seek, "-t", String(duration), "-i", inputPath, ...FFMPEG_AUDIO_ARGS, wavPath];
+  }
+  if (start !== undefined) {
+    return ["-ss", seek, "-i", inputPath, ...FFMPEG_AUDIO_ARGS, wavPath];
+  }
+  return ["-i", inputPath, ...FFMPEG_AUDIO_ARGS, wavPath];
+}
+
+export function runFfmpeg(args) {
+  return new Promise((resolve) => {
+    const child = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (d) => {
+      stderr += d;
+    });
+    child.on("error", (err) => {
+      resolve({ ok: false, stderr: `ffmpeg not found: ${err.message}` });
+    });
+    child.on("close", (code) => {
+      resolve({ ok: code === 0, stderr: stderr.slice(-2000) });
+    });
+  });
+}
+
+export function tmpWavPath(inputPath) {
+  const dir =
+    process.platform === "linux"
+      ? "/tmp/opencode/media-to-notes"
+      : path.join(os.tmpdir(), "media-to-notes");
+  fs.mkdirSync(dir, { recursive: true });
+  const base = path.basename(inputPath, path.extname(inputPath));
+  return path.join(dir, `${base}-${Date.now()}.wav`);
 }
 
 // Stub until Task 4 wires the full pipeline: parses arguments and reports
