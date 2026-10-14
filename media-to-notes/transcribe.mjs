@@ -482,7 +482,16 @@ export async function main(argv) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Node resolves import.meta.url through symlinks, but argv[1] keeps the
+// symlink path the user typed (this repo deploys skills via symlinks) —
+// realpath argv[1] so the guard matches both the repo path and the linked one.
+let entryPath = null;
+try {
+  entryPath = process.argv[1] ? fs.realpathSync(process.argv[1]) : null;
+} catch {
+  entryPath = process.argv[1]; // e.g. `node -e` eval strings — never matches below
+}
+if (entryPath && import.meta.url === pathToFileURL(entryPath).href) {
   main(process.argv.slice(2))
     .then((code) => process.exit(code))
     .catch((err) => {
