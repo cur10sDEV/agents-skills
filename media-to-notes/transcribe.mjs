@@ -126,8 +126,8 @@ const AUDIO_EXTS = new Set([
   ".wma", ".amr", ".aiff",
 ]);
 
-function ffprobeEntries(filePath, selectStreams) {
-  const r = spawnSync(
+function ffprobeStreamInfo(filePath, selectStreams) {
+  return spawnSync(
     "ffprobe",
     [
       "-v", "error",
@@ -138,7 +138,6 @@ function ffprobeEntries(filePath, selectStreams) {
     ],
     { encoding: "utf8" }
   );
-  return (r.stdout || "").trim();
 }
 
 export function classifyInput(filePath) {
@@ -146,11 +145,20 @@ export function classifyInput(filePath) {
   if (VIDEO_EXTS.has(ext)) return "video";
   if (AUDIO_EXTS.has(ext)) return "audio";
   // Unknown extension: fall back to ffprobe — any video stream means video.
-  return ffprobeEntries(filePath, "v:0").length > 0 ? "video" : "audio";
+  const r = ffprobeStreamInfo(filePath, "v:0");
+  return ((r.stdout || "").trim().length > 0) ? "video" : "audio";
+}
+
+// 'yes' = audio stream found; 'no' = probe succeeded but no audio stream;
+// 'unknown' = ffprobe itself failed (e.g. corrupt file) — caller defers to ffmpeg.
+function probeAudio(filePath) {
+  const r = ffprobeStreamInfo(filePath, "a:0");
+  if (r.status !== 0) return "unknown";
+  return ((r.stdout || "").trim().length > 0) ? "yes" : "no";
 }
 
 export function hasAudioStream(filePath) {
-  return ffprobeEntries(filePath, "a:0").length > 0;
+  return probeAudio(filePath) === "yes";
 }
 
 const FFMPEG_AUDIO_ARGS = ["-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le"];
@@ -186,13 +194,29 @@ export function runFfmpeg(args) {
 }
 
 export function tmpWavPath(inputPath) {
-  const dir =
-    process.platform === "linux"
-      ? "/tmp/opencode/media-to-notes"
-      : path.join(os.tmpdir(), "media-to-notes");
+  const dir = tempWavDir();
   fs.mkdirSync(dir, { recursive: true });
   const base = path.basename(inputPath, path.extname(inputPath));
   return path.join(dir, `${base}-${Date.now()}.wav`);
+}
+
+function tempWavDir() {
+  return process.platform === "linux"
+    ? "/tmp/opencode/media-to-notes"
+    : path.join(os.tmpdir(), "media-to-notes");
+}
+
+// The temp dir is skill-owned: a successful non-keep run clears it entirely,
+// removing its own wav plus any leftovers kept by earlier --keep-audio or
+// failed runs (16 kHz wavs are ~2 MB per media minute, so they must not pile up).
+function cleanTempWavs() {
+  try {
+    for (const f of fs.readdirSync(tempWavDir())) {
+      if (f.endsWith(".wav")) fs.rmSync(path.join(tempWavDir(), f), { force: true });
+    }
+  } catch {
+    // dir may not exist — nothing to clean
+  }
 }
 
 // --- OpenWhispr CLI bridge ----------------------------------------------------
@@ -371,18 +395,98 @@ export async function transcribeViaBridge({ path: mediaPath, model, language, ti
   };
 }
 
-// Stub until Task 4 wires the full pipeline: parses arguments and reports
-// usage errors with the CLI's exit-code contract (1 = usage/validation).
-export function main(argv) {
+// Full pipeline: parse → validate input → optional ffmpeg stage → OpenWhispr
+// bridge transcription → write .txt. Exit codes: 0 ok, 1 usage/validation,
+// 2 bridge/ffmpeg/app failure, 3 no speech (nothing written).
+export async function main(argv) {
+  let tempWav = null;
   try {
-    parseArgs(argv);
+    const opts = parseArgs(argv);
+
+    let realInput;
+    try {
+      realInput = fs.realpathSync(opts.inputPath);
+    } catch {
+      throw new UsageError(`no file at ${opts.inputPath}`);
+    }
+    if (!fs.statSync(realInput).isFile()) {
+      throw new UsageError(`input is not a file: ${opts.inputPath}`);
+    }
+
+    const kind = classifyInput(realInput);
+    const needsTrim =
+      opts.start !== undefined || opts.end !== undefined || opts.duration !== undefined;
+    let mediaPath = realInput;
+
+    // Video always needs extraction; audio needs ffmpeg only when trimming.
+    if (kind === "video" || needsTrim) {
+      if (kind === "video") {
+        const audio = probeAudio(realInput);
+        if (audio === "no") throw new UsageError("input has no audio track");
+        // 'unknown' (probe failed, e.g. corrupt file) proceeds so ffmpeg's
+        // own error — the actionable one — reaches the user as exit 2.
+      }
+      tempWav = tmpWavPath(realInput);
+      const ff = await runFfmpeg(
+        buildFfmpegArgs(realInput, tempWav, {
+          start: opts.start,
+          end: opts.end,
+          duration: opts.duration,
+        })
+      );
+      if (!ff.ok) {
+        const tail = ff.stderr.split("\n").filter(Boolean).slice(-2).join(" | ");
+        throw new Error(`ffmpeg failed: ${tail}`);
+      }
+      mediaPath = tempWav;
+    }
+
+    await ensureBridgeAvailable({
+      noLaunch: opts.noLaunch,
+      log: (s) => process.stderr.write(`${s}\n`),
+    });
+
+    const result = await transcribeViaBridge({
+      path: mediaPath,
+      model: opts.model,
+      language: opts.language,
+      timeoutSec: opts.timeoutSec,
+    });
+
+    if (!result.text) {
+      process.stderr.write(
+        `transcribe: no speech detected in ${opts.inputPath} — nothing written\n`
+      );
+      return 3;
+    }
+
+    const outPath = resolveOutputPath(realInput, opts.out);
+    if (fs.existsSync(outPath) && !opts.force) {
+      throw new UsageError(`output file already exists: ${outPath} (use --force to overwrite)`);
+    }
+    fs.writeFileSync(outPath, `${result.text}\n`, "utf8");
+
+    if (!opts.keepAudio) {
+      cleanTempWavs();
+    }
+
+    process.stdout.write(`${outPath}\n`);
+    process.stdout.write(`chars: ${result.text.length}\n`);
+    process.stdout.write(`provider: ${result.provider}\n`);
+    process.stdout.write(`model: ${result.model}\n`);
+    process.stdout.write(`preview: ${result.text.slice(0, 200).replace(/\s+/g, " ")}\n`);
     return 0;
   } catch (err) {
-    process.stderr.write(`transcribe: ${err.message}\n`);
+    process.stderr.write(`transcribe: ${err.message || err}\n`);
     return err instanceof UsageError ? 1 : 2;
   }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exit(main(process.argv.slice(2)));
+  main(process.argv.slice(2))
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      process.stderr.write(`transcribe: unexpected failure: ${err?.stack || err}\n`);
+      process.exit(2);
+    });
 }
