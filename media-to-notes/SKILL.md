@@ -58,7 +58,7 @@ Video inputs are always passed through ffmpeg first (`-vn -ac 1 -ar 16000 -c:a p
 | exit 1, `provide only one of --end or --duration` | Pick one; both were given |
 | exit 1, `no file at …` | Input path wrong, or the agent's working directory moved |
 | exit 1, `input has no audio track` | Valid video file with no audio stream |
-| exit 1, `--no-launch set and OpenWhispr is not running` | Launch OpenWhispr, or drop `--no-launch` |
+| exit 2, `--no-launch set and OpenWhispr is not running` | Launch OpenWhispr, or drop `--no-launch` |
 | exit 2, `OpenWhispr … no installed binary was found` | OpenWhispr is not installed (or non-standard path — set `OPENWHISPR_BIN`) |
 | exit 2, `Model '…' is not downloaded` | Open OpenWhispr → Settings → Transcription → download the model, or omit `--model` |
 | exit 2, `ffmpeg failed: …` | Corrupt/unsupported media (temp wav is kept for diagnosis; pass `--keep-audio` to inspect) |
