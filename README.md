@@ -4,6 +4,19 @@ Centralized collection of AI coding agent skills (each is a directory with a `SK
 
 **Cross-platform**: relative symlinks on macOS/Linux, directory junctions on Windows (no admin needed), and automatic recursive-copy fallback when neither is available.
 
+## Skills in this repo
+
+| Skill | Description |
+|-------|-------------|
+| `humanizer` | Rewrites AI-sounding prose so it reads like the writer, without changing what it says |
+| `linkedin-post-generator` | Generates LinkedIn post text and infographics for any topic, preferably technical (CS / software development) |
+| `notesmith` | Turns a lecture or talk transcript (file or pasted text) into a note or study guide |
+| `sound-human` | Runs `humanizer` then `stop-slop` on a document and writes the result to a new draft file, never the original |
+| `soundscribe` | Transcribes a local audio or video file via the OpenWhispr CLI bridge (NVIDIA Parakeet), then hands the transcript to `notesmith` |
+| `stop-slop` | Removes predictable AI writing patterns from prose |
+
+Discovery is automatic: any repo-root directory with a `SKILL.md` counts, and `node link.js --dry-run` prints the live list.
+
 ## Quick start
 
 ```bash
@@ -120,7 +133,8 @@ If `skills` is omitted, all skills are linked. If present, only the named skills
 1. Create a directory in the repo root (e.g., `my-new-skill/`)
 2. Add a `SKILL.md` file inside it — the linker discovers directories by looking for that file
 3. Add any associated assets alongside it
-4. Run `node link.js` — no config changes needed unless you want per-agent filtering
+4. Add a one-line row for it to the **Skills in this repo** table
+5. Run `node link.js` — no config changes needed unless you want per-agent filtering
 
 ## Adding dependencies to a skill
 
