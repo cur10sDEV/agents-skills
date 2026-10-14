@@ -254,17 +254,29 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function spawnDetached(bin, args = []) {
+  const child = spawn(bin, args, {
+    detached: true,
+    stdio: "ignore",
+    shell: process.platform === "win32",
+  });
+  // An async spawn failure (ENOENT/EACCES) must not crash the CLI with a
+  // stack trace — the caller's polling surfaces it as a clean exit 2.
+  child.on("error", () => {});
+  child.unref();
+}
+
 function launchOpenWhispr() {
   if (process.env.OPENWHISPR_BIN) {
-    spawn(process.env.OPENWHISPR_BIN, [], {
-      detached: true,
-      stdio: "ignore",
-      shell: process.platform === "win32",
-    }).unref();
+    const bin = process.env.OPENWHISPR_BIN;
+    if (!fs.existsSync(bin)) {
+      throw new BridgeError(`OpenWhispr binary not found at ${bin} (OPENWHISPR_BIN)`);
+    }
+    spawnDetached(bin);
     return;
   }
   if (process.platform === "darwin") {
-    spawn("open", ["-a", "OpenWhispr"], { detached: true, stdio: "ignore" }).unref();
+    spawnDetached("open", ["-a", "OpenWhispr"]);
     return;
   }
   const candidates =
@@ -275,7 +287,7 @@ function launchOpenWhispr() {
         : [];
   for (const bin of candidates) {
     if (fs.existsSync(bin)) {
-      spawn(bin, [], { detached: true, stdio: "ignore", shell: process.platform === "win32" }).unref();
+      spawnDetached(bin);
       return;
     }
   }
