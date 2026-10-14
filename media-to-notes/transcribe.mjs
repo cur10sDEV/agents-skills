@@ -440,6 +440,15 @@ export async function main(argv) {
       throw new UsageError(`input is not a file: ${opts.inputPath}`);
     }
 
+    // Resolve and refuse the output BEFORE any expensive work — a forgotten
+    // --force must fail fast instead of burning a full transcription. Name
+    // the default output after the path the user typed (not the realpath
+    // target), so a symlinked input keeps its link's name.
+    const outPath = resolveOutputPath(opts.inputPath, opts.out);
+    if (fs.existsSync(outPath) && !opts.force) {
+      throw new UsageError(`output file already exists: ${outPath} (use --force to overwrite)`);
+    }
+
     const kind = classifyInput(realInput);
     const needsTrim =
       opts.start !== undefined || opts.end !== undefined || opts.duration !== undefined;
@@ -489,10 +498,6 @@ export async function main(argv) {
       return 3;
     }
 
-    const outPath = resolveOutputPath(realInput, opts.out);
-    if (fs.existsSync(outPath) && !opts.force) {
-      throw new UsageError(`output file already exists: ${outPath} (use --force to overwrite)`);
-    }
     fs.writeFileSync(outPath, `${result.text}\n`, "utf8");
 
     if (tempWav && !opts.keepAudio) {
