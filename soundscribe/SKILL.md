@@ -1,10 +1,10 @@
 ---
-name: media-to-notes
+name: soundscribe
 description: Transcribe a local audio or video file locally via the OpenWhispr desktop app's CLI bridge (NVIDIA Parakeet model) and hand the plain-text transcript to the notesmith skill to produce a study guide. Use when the user asks to transcribe a recording or lecture, extract audio from a video, optionally trim between --start/--end or --start/--duration timestamps, or make notes from any media file. Requires OpenWhispr installed; launches it automatically if it is not running.
 version: 0.1.0
 ---
 
-# Media to Notes
+# Soundscribe
 
 Turn a local media file (audio or video) into a notesmith study guide, fully locally: OpenWhispr's bundled NVIDIA Parakeet model does the transcription, notesmith writes the note.
 

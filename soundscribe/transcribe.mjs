@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// media-to-notes — transcribe a local audio/video file via the OpenWhispr
+// soundscribe — transcribe a local audio/video file via the OpenWhispr
 // CLI bridge (NVIDIA Parakeet) and write a plain-text transcript .txt.
 // Zero dependencies; Node >= 18.
 
@@ -204,8 +204,8 @@ export function tmpWavPath(inputPath) {
 
 function tempWavDir() {
   return process.platform === "linux"
-    ? "/tmp/opencode/media-to-notes"
-    : path.join(os.tmpdir(), "media-to-notes");
+    ? "/tmp/opencode/soundscribe"
+    : path.join(os.tmpdir(), "soundscribe");
 }
 
 // Stale run-dirs (kept via --keep-audio or stranded by a failure) are swept
